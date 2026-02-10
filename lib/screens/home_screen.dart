@@ -13,7 +13,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentDay = 1;
+  int _currentGrade = 1;
+  int _currentStep = 1;
   int _tokens = 0;
   bool _isLoading = true;
 
@@ -28,7 +29,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Refresh stats when returning to screen (but not on first build)
     if (_hasLoadedOnce && !_isLoading && mounted) {
       _loadStats();
     }
@@ -38,8 +38,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadStats() async {
     final stats = await DatabaseHelper.instance.getUserStats();
     setState(() {
-      _currentDay = stats['current_day'];
-      _tokens = stats['tokens'];
+      _currentGrade = stats['current_grade'] ?? 1;
+      _currentStep = stats['current_step'] ?? 1;
+      _tokens = stats['tokens'] ?? 0;
       _isLoading = false;
     });
   }
@@ -52,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFFEFF3FF), // Light indigo
+            Color(0xFFEFF3FF),
             Color(0xFFF5F8FF),
             Color(0xFFFAFAFC),
           ],
@@ -80,8 +81,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     _buildMenuButton(
                       context,
                       icon: Icons.play_circle_outline,
-                      title: 'Start Stage $_currentDay',
-                      subtitle: 'Current Lesson',
+                      title: 'Grade $_currentGrade - Step $_currentStep',
+                      subtitle: 'Continue Learning',
                       gradient: const LinearGradient(
                         colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                       ),
@@ -89,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => DayScreen(day: _currentDay),
+                            builder: (context) => StepScreen(grade: _currentGrade, step: _currentStep),
                           ),
                         );
                         _loadStats();
@@ -100,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       context,
                       icon: Icons.explore,
                       title: 'My Journey',
-                      subtitle: 'View all stages',
+                      subtitle: 'Grades & Steps',
                       gradient: const LinearGradient(
                         colors: [Color(0xFF10B981), Color(0xFF059669)],
                       ),
@@ -115,30 +116,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    if (_currentDay > 1) ...[
-                      _buildMenuButton(
-                        context,
-                        icon: Icons.emoji_events,
-                        title: 'Ultimate Challenge',
-                        subtitle: 'Test all stages',
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFF59E0B), Color(0xFFEF4444)],
-                        ),
-                        onTap: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => QuizScreen(
-                                mode: QuizMode.ultimate,
-                                maxDay: _currentDay,
-                              ),
-                            ),
-                          );
-                          _loadStats();
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                    ],
                     _buildMenuButton(
                       context,
                       icon: Icons.menu_book,
@@ -188,15 +165,15 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: Column(
               children: [
-                const Icon(Icons.explore, color: Colors.white70, size: 24),
+                const Icon(Icons.school, color: Colors.white70, size: 24),
                 const SizedBox(height: 8),
                 const Text(
-                  'Current Stage',
+                  'Current Grade',
                   style: TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$_currentDay',
+                  '$_currentGrade',
                   style: const TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.bold,

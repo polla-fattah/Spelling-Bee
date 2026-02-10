@@ -4,14 +4,21 @@ import 'package:flutter_tts/flutter_tts.dart';
 import '../models/word.dart';
 import '../services/db_helper.dart';
 
-enum QuizMode { stage, reinforcement, ultimate }
+enum QuizMode { step, reinforcement, ultimate }
 
 class QuizScreen extends StatefulWidget {
   final QuizMode mode;
-  final int? targetStage;
-  final int? maxStage;
+  final int? targetGrade;
+  final int? targetStep;
+  final int? maxGrade;
 
-  const QuizScreen({super.key, this.mode = QuizMode.stage, this.targetStage, this.maxStage});
+  const QuizScreen({
+    super.key, 
+    this.mode = QuizMode.step, 
+    this.targetGrade, 
+    this.targetStep, 
+    this.maxGrade
+  });
 
   @override
   State<QuizScreen> createState() => _QuizScreenState();
@@ -26,7 +33,7 @@ class _QuizScreenState extends State<QuizScreen> {
   List<String> _shuffledLetters = [];
   List<String> _selectedLetters = [];
   List<String> _targetLetters = [];
-  List<bool> _letterUsed = []; // Track which letters are used
+  List<bool> _letterUsed = []; 
   
   bool _isAnswered = false;
   bool _isCorrect = false;
@@ -36,7 +43,7 @@ class _QuizScreenState extends State<QuizScreen> {
   bool _isSpellingQuestion = true;
   List<String> _mcOptions = [];
   int _tokens = 0;
-  bool _isAudioMode = false; // Whether current question is audio-based
+  bool _isAudioMode = false; 
   final FlutterTts _flutterTts = FlutterTts();
 
   @override
@@ -49,7 +56,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
   Future<void> _initTts() async {
     await _flutterTts.setLanguage("en-US");
-    await _flutterTts.setSpeechRate(0.4); // Slower for learning
+    await _flutterTts.setSpeechRate(0.4); 
     await _flutterTts.setVolume(1.0);
     await _flutterTts.setPitch(1.0);
   }
@@ -71,17 +78,14 @@ class _QuizScreenState extends State<QuizScreen> {
 
   Future<List<Word>> _loadWords() async {
     List<Word> words = [];
-    if (widget.mode == QuizMode.stage && widget.targetStage != null) {
-      words = await DatabaseHelper.instance.getWordsForStage(widget.targetStage!);
-    } else if (widget.mode == QuizMode.reinforcement && widget.targetStage != null) {
-      words = await DatabaseHelper.instance.getWordsForStage(widget.targetStage!);
-    } else if (widget.mode == QuizMode.ultimate && widget.maxStage != null) {
-      words = await DatabaseHelper.instance.getWordsUpToStage(widget.maxStage!, 25);
+    if (widget.mode == QuizMode.step && widget.targetGrade != null && widget.targetStep != null) {
+      words = await DatabaseHelper.instance.getWordsForStep(widget.targetGrade!, widget.targetStep!);
+    } else if (widget.mode == QuizMode.reinforcement && widget.targetGrade != null && widget.targetStep != null) {
+      words = await DatabaseHelper.instance.getWordsForStep(widget.targetGrade!, widget.targetStep!);
     } else {
       words = await DatabaseHelper.instance.getRandomWords(10);
     }
 
-    // Shuffle words for ALL modes to ensure variety
     words.shuffle();
     
     setState(() {
@@ -94,15 +98,10 @@ class _QuizScreenState extends State<QuizScreen> {
   void _prepareQuestion(int index) {
     if (index >= _quizWords.length) return;
     
-    // Always use spelling/building mode
     _isSpellingQuestion = true; 
-    
     final currentWord = _quizWords[index];
-    
-    // 50% chance for audio mode
     _isAudioMode = Random().nextBool();
     
-    // Prepare Scrambled Letters
     _targetLetters = currentWord.english.toUpperCase().split('');
     _shuffledLetters = List.from(_targetLetters)..shuffle();
     _selectedLetters = [];
@@ -112,7 +111,6 @@ class _QuizScreenState extends State<QuizScreen> {
     _feedbackMessage = '';
     _isHintVisible = false;
     
-    // Auto-play audio if in audio mode
     if (_isAudioMode) {
       Future.delayed(const Duration(milliseconds: 500), () {
         _speakWord(currentWord.english);
@@ -124,21 +122,12 @@ class _QuizScreenState extends State<QuizScreen> {
     await _flutterTts.speak(word);
   }
 
-  void _generateMCOptions(Word correctWord) {
-    final distractors = _quizWords.where((w) => w.id != correctWord.id).toList();
-    distractors.shuffle();
-    final options = distractors.take(3).map((w) => w.kurdishSorani).toList();
-    options.add(correctWord.kurdishSorani);
-    options.shuffle();
-    _mcOptions = options;
-  }
-
   void _onLetterTap(String letter, int index) {
     if (_isAnswered || _letterUsed[index]) return;
     
     setState(() {
       _selectedLetters.add(letter);
-      _letterUsed[index] = true; // Mark as used
+      _letterUsed[index] = true; 
     });
 
     if (_selectedLetters.length == _targetLetters.length) {
@@ -153,7 +142,6 @@ class _QuizScreenState extends State<QuizScreen> {
       String letter = _selectedLetters[slotIndex];
       _selectedLetters.removeAt(slotIndex);
       
-      // Find and re-enable the letter in the pool
       for (int i = 0; i < _shuffledLetters.length; i++) {
         if (_shuffledLetters[i] == letter && _letterUsed[i]) {
           _letterUsed[i] = false;
@@ -166,7 +154,7 @@ class _QuizScreenState extends State<QuizScreen> {
   void _resetCurrentQuestion() {
     setState(() {
       _selectedLetters.clear();
-      _letterUsed = List.filled(_shuffledLetters.length, false); // Re-enable all letters
+      _letterUsed = List.filled(_shuffledLetters.length, false); 
       _feedbackMessage = '';
       _isCorrect = false;
       _isAnswered = false;
@@ -184,22 +172,6 @@ class _QuizScreenState extends State<QuizScreen> {
         _feedbackMessage = 'Incorrect! Try Reset?';
         _isCorrect = false;
       });
-    }
-  }
-
-  void _checkMC(String selectedOption) {
-    if (_isAnswered) return;
-    
-    final correct = _quizWords[_currentIndex].kurdishSorani;
-    if (selectedOption == correct) {
-      _handleCorrect();
-    } else {
-      setState(() {
-        _isAnswered = true;
-        _isCorrect = false;
-        _feedbackMessage = 'Incorrect! The answer was $correct';
-      });
-      Future.delayed(const Duration(seconds: 2), _nextQuestion);
     }
   }
 
@@ -229,9 +201,9 @@ class _QuizScreenState extends State<QuizScreen> {
     bool isWin = _score >= (_quizWords.length * 0.7);
     
     if (isWin) {
-      if (widget.mode == QuizMode.stage) {
+      if (widget.mode == QuizMode.step) {
         tokensEarned = 10;
-        await DatabaseHelper.instance.advanceStage(widget.targetStage!);
+        await DatabaseHelper.instance.advanceStep(widget.targetGrade!, widget.targetStep!);
       } else if (widget.mode == QuizMode.reinforcement) {
         tokensEarned = 5;
       } else if (widget.mode == QuizMode.ultimate) {
@@ -321,10 +293,8 @@ class _QuizScreenState extends State<QuizScreen> {
 
   Future<void> _useHint() async {
     if (_isAnswered || _tokens <= 0) return;
-    
     if (_selectedLetters.length >= _targetLetters.length) return;
     
-    // Deduct token
     await DatabaseHelper.instance.updateTokens(-1);
     setState(() {
       _tokens--;
@@ -333,43 +303,17 @@ class _QuizScreenState extends State<QuizScreen> {
     int nextIndex = _selectedLetters.length;
     String neededChar = _targetLetters[nextIndex];
     
-    // Find the first unused instance of the needed character
     for (int i = 0; i < _shuffledLetters.length; i++) {
       if (_shuffledLetters[i] == neededChar && !_letterUsed[i]) {
         _onLetterTap(neededChar, i);
-        
-        // Show feedback
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.lightbulb, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Text('Hint used! $_tokens tokens remaining'),
-              ],
-            ),
-            backgroundColor: const Color(0xFF6366F1),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
         return;
       }
     }
     
-    // If letter already used, refund the token
     await DatabaseHelper.instance.updateTokens(1);
     setState(() {
       _tokens++;
     });
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('The letter you need is already used! Try clearing some slots.'),
-        backgroundColor: Colors.orange,
-      ),
-    );
   }
 
   @override
@@ -380,7 +324,7 @@ class _QuizScreenState extends State<QuizScreen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFFEEF3FF), // Light indigo
+            Color(0xFFEEF3FF), 
             Color(0xFFF6F8FF),
             Color(0xFFFAFAFC),
           ],
@@ -419,10 +363,9 @@ class _QuizScreenState extends State<QuizScreen> {
               ),
             ),
           ),
-          if (_isSpellingQuestion && !_isAnswered)
+          if (!_isAnswered)
             IconButton(
               icon: const Icon(Icons.lightbulb_outline, color: Colors.white), 
-              tooltip: _tokens > 0 ? 'Hint (1 token)' : 'No tokens',
               onPressed: _tokens > 0 ? _useHint : null,
             ),
         ],
@@ -434,7 +377,7 @@ class _QuizScreenState extends State<QuizScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (_quizWords.isEmpty) {
-             return const Center(child: Text('No words found for this quiz!'));
+             return const Center(child: Text('No words found!'));
           }
 
           final word = _quizWords[_currentIndex];
@@ -462,71 +405,50 @@ class _QuizScreenState extends State<QuizScreen> {
                 const SizedBox(height: 10),
                 
                 if (!_isAnswered && word.hint.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _isHintVisible ? const Color(0xFFFEF3C7) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _isHintVisible ? const Color(0xFFF59E0B) : Colors.grey.shade300,
-                        width: 2,
+                  GestureDetector(
+                    onTap: () {
+                      if (!_isHintVisible) {
+                        setState(() {
+                          _isHintVisible = true;
+                        });
+                      }
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: _isHintVisible ? const Color(0xFFFEF3C7) : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _isHintVisible ? const Color(0xFFF59E0B) : Colors.grey.shade300,
+                          width: 2,
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _isHintVisible ? Icons.lightbulb : Icons.lightbulb_outline,
-                          color: const Color(0xFFF59E0B),
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _isHintVisible
-                              ? Text(
-                                  word.hint,
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    color: Color(0xFF92400E),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                )
-                              : GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _isHintVisible = true;
-                                    });
-                                  },
-                                  child: const Text(
-                                    'Tap to show hint',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      color: Colors.grey,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                        if (!_isHintVisible)
-                          IconButton(
-                            icon: const Icon(Icons.visibility_outlined, size: 20),
-                            color: Colors.grey,
-                            onPressed: () {
-                              setState(() {
-                                _isHintVisible = true;
-                              });
-                            },
+                      child: Row(
+                        children: [
+                          Icon(
+                            _isHintVisible ? Icons.lightbulb : Icons.lightbulb_outline,
+                            color: _isHintVisible ? const Color(0xFFF59E0B) : Colors.grey,
+                            size: 24,
                           ),
-                      ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _isHintVisible ? word.hint : 'Tap to show hint',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: _isHintVisible ? const Color(0xFF92400E) : Colors.grey,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 
                 const SizedBox(height: 10),
-                
-                if (_isSpellingQuestion) 
-                  _buildSpellingLayout(word, _isAudioMode)
-                else 
-                  _buildMCLayout(word),
+                _buildSpellingLayout(word, _isAudioMode),
 
                 if (_feedbackMessage.isNotEmpty) ...[
                   const SizedBox(height: 20),
@@ -539,7 +461,7 @@ class _QuizScreenState extends State<QuizScreen> {
                       color: _isCorrect ? Colors.green : Colors.red,
                     ),
                   ),
-                  if (!_isCorrect && _isSpellingQuestion)
+                  if (!_isCorrect)
                     Padding(
                       padding: const EdgeInsets.only(top: 10.0),
                       child: Center(
@@ -547,10 +469,6 @@ class _QuizScreenState extends State<QuizScreen> {
                           onPressed: _resetCurrentQuestion,
                           icon: const Icon(Icons.refresh),
                           label: const Text("Clear & Retry"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.redAccent,
-                            foregroundColor: Colors.white,
-                          ),
                         ),
                       ),
                     ),
@@ -566,7 +484,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
   String _getAppBarTitle() {
     switch (widget.mode) {
-      case QuizMode.stage: return 'Stage Quiz';
+      case QuizMode.step: return 'Step Quiz';
       case QuizMode.reinforcement: return 'Review';
       case QuizMode.ultimate: return 'Ultimate Challenge';
     }
@@ -580,105 +498,46 @@ class _QuizScreenState extends State<QuizScreen> {
            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
          ),
          const SizedBox(height: 10),
-         if (isAudio)
-           // Audio mode - show speaker button
-           Container(
-             padding: const EdgeInsets.all(24),
-             decoration: BoxDecoration(
-               gradient: const LinearGradient(
-                 colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                 begin: Alignment.topLeft,
-                 end: Alignment.bottomRight,
-               ),
-               borderRadius: BorderRadius.circular(20),
-               boxShadow: [
-                 BoxShadow(
-                   color: const Color(0xFF6366F1).withOpacity(0.3),
-                   blurRadius: 12,
-                   offset: const Offset(0, 4),
-                 ),
-               ],
+         Container(
+           padding: const EdgeInsets.all(20),
+           decoration: BoxDecoration(
+             gradient: const LinearGradient(
+               colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+               begin: Alignment.topLeft,
+               end: Alignment.bottomRight,
              ),
-             child: Column(
-               children: [
-                 const Icon(
-                   Icons.hearing,
-                   size: 48,
-                   color: Colors.white,
-                 ),
-                 const SizedBox(height: 16),
-                 ElevatedButton.icon(
-                   onPressed: () => _speakWord(word.english),
-                   icon: const Icon(Icons.volume_up, size: 28),
-                   label: const Text(
-                     'Play Word',
-                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                   ),
-                   style: ElevatedButton.styleFrom(
-                     backgroundColor: Colors.white,
-                     foregroundColor: const Color(0xFF6366F1),
-                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                     elevation: 4,
-                     shape: RoundedRectangleBorder(
-                       borderRadius: BorderRadius.circular(12),
-                     ),
-                   ),
-                 ),
-                 const SizedBox(height: 12),
-                 const Text(
-                   'Tap to hear the word again',
-                   style: TextStyle(
-                     fontSize: 14,
-                     color: Colors.white70,
-                     fontStyle: FontStyle.italic,
-                   ),
-                 ),
-               ],
-             ),
-           )
-         else
-           // Visual mode - show translations
-           Container(
-             padding: const EdgeInsets.all(24),
-             decoration: BoxDecoration(
-               gradient: const LinearGradient(
-                 colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                 begin: Alignment.topLeft,
-                 end: Alignment.bottomRight,
-               ),
-               borderRadius: BorderRadius.circular(20),
-               boxShadow: [
-                 BoxShadow(
-                   color: const Color(0xFF6366F1).withOpacity(0.3),
-                   blurRadius: 12,
-                   offset: const Offset(0, 4),
-                 ),
-               ],
-             ),
-             child: Column(
-               children: [
-                 Text(
-                   word.kurdishSorani,
-                   style: const TextStyle(
-                     fontSize: 32,
-                     fontWeight: FontWeight.bold,
-                     color: Colors.white,
-                   ),
-                 ),
-                 const SizedBox(height: 8),
-                 Text(
-                   word.arabic,
-                   style: const TextStyle(
-                     fontSize: 24,
-                     color: Colors.white70,
-                   ),
-                 ),
-               ],
-             ),
+             borderRadius: BorderRadius.circular(20),
            ),
+           child: Column(
+             children: [
+               Container(
+                 decoration: BoxDecoration(
+                   color: Colors.white.withOpacity(0.2),
+                   borderRadius: BorderRadius.circular(12),
+                 ),
+                 child: IconButton(
+                   onPressed: () => _speakWord(word.english),
+                   icon: const Icon(Icons.volume_up_rounded),
+                   color: Colors.white,
+                   iconSize: 32,
+                 ),
+               ),
+               const SizedBox(height: 16),
+               Text(
+                 word.kurdishSorani,
+                 style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                 textAlign: TextAlign.center,
+               ),
+               const SizedBox(height: 8),
+               Text(
+                 word.arabic,
+                 style: const TextStyle(fontSize: 22, color: Colors.white70),
+                 textAlign: TextAlign.center,
+               ),
+             ],
+           ),
+         ),
          const SizedBox(height: 30),
-         
-         // Answer Slots
          Wrap(
            alignment: WrapAlignment.center,
            spacing: 8,
@@ -692,17 +551,13 @@ class _QuizScreenState extends State<QuizScreen> {
                  alignment: Alignment.center,
                  decoration: BoxDecoration(
                    border: Border(bottom: BorderSide(width: 2, color: Colors.grey.shade400)),
-                   color: char.isNotEmpty ? Colors.white : Colors.transparent,
                  ),
                  child: Text(char, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                ),
              );
            }),
          ),
-         
          const SizedBox(height: 30),
-         
-         // Shuffled Letters Pool
          Wrap(
            alignment: WrapAlignment.center,
            spacing: 10,
@@ -714,26 +569,18 @@ class _QuizScreenState extends State<QuizScreen> {
                borderRadius: BorderRadius.circular(12),
                child: InkWell(
                  onTap: isUsed ? null : () => _onLetterTap(_shuffledLetters[index], index),
-                 borderRadius: BorderRadius.circular(12),
                  child: Container(
                    width: 50,
                    height: 50,
                    decoration: BoxDecoration(
                      color: isUsed ? Colors.grey.shade200 : Colors.white,
                      borderRadius: BorderRadius.circular(12),
-                     border: Border.all(
-                       color: isUsed ? Colors.grey.shade400 : const Color(0xFF6366F1),
-                       width: 2,
-                     ),
+                     border: Border.all(color: isUsed ? Colors.grey.shade400 : const Color(0xFF6366F1), width: 2),
                    ),
                    child: Center(
                      child: Text(
                        _shuffledLetters[index],
-                       style: TextStyle(
-                         fontSize: 20,
-                         fontWeight: FontWeight.bold,
-                         color: isUsed ? Colors.grey.shade500 : const Color(0xFF6366F1),
-                       ),
+                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isUsed ? Colors.grey.shade500 : const Color(0xFF6366F1)),
                      ),
                    ),
                  ),
@@ -741,41 +588,11 @@ class _QuizScreenState extends State<QuizScreen> {
              );
            }),
          ),
-         
-         const SizedBox(height: 20),
          if (_isAnswered)
-            Text(
-               'Answer: ${word.english}', 
-               style: const TextStyle(fontSize: 18, color: Colors.green, fontWeight: FontWeight.bold)
+            Padding(
+              padding: const EdgeInsets.only(top: 20),
+              child: Text('Answer: ${word.english}', style: const TextStyle(fontSize: 18, color: Colors.green, fontWeight: FontWeight.bold)),
             ),
-      ],
-    );
-  }
-
-  Widget _buildMCLayout(Word word) {
-    return Column(
-      children: [
-        const Text('Select the Meaning:', style: TextStyle(fontSize: 20)),
-        const SizedBox(height: 10),
-        Text(word.english, style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 30),
-        ..._mcOptions.map((option) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _isAnswered 
-                    ? (option == word.kurdishSorani ? Colors.green : (option == word.kurdishSorani ? Colors.red : Colors.blue.shade100))
-                    : Colors.white,
-                foregroundColor: Colors.black,
-              ),
-              onPressed: _isAnswered ? null : () => _checkMC(option),
-              child: Text(option, style: const TextStyle(fontSize: 20)),
-            ),
-          ),
-        )).toList(),
       ],
     );
   }

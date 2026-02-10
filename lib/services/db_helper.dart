@@ -13,7 +13,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('vocabulary_v3.db');
+    _database = await _initDB('vocabulary_v4.db'); // Incremented version
     return _database!;
   }
 
@@ -21,7 +21,7 @@ class DatabaseHelper {
     final dbPath = await getApplicationDocumentsDirectory();
     final path = join(dbPath.path, filePath);
 
-    // Always copy from assets if it's a new version/file to ensure hints are there
+    // Copy from assets if not exists
     if (FileSystemEntity.typeSync(path) == FileSystemEntityType.notFound) {
       ByteData data = await rootBundle.load('assets/vocabulary.db');
       List<int> bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
@@ -30,11 +30,12 @@ class DatabaseHelper {
 
     final db = await openDatabase(path, version: 1);
     
-    // Create user_stats table with 'current_stage'
+    // Create user_stats table with 'current_grade' and 'current_step'
     await db.execute('''
       CREATE TABLE IF NOT EXISTS user_stats (
         id INTEGER PRIMARY KEY,
-        current_stage INTEGER DEFAULT 1,
+        current_grade INTEGER DEFAULT 1,
+        current_step INTEGER DEFAULT 1,
         tokens INTEGER DEFAULT 0
       )
     ''');
@@ -42,15 +43,7 @@ class DatabaseHelper {
     // Initialize stats if empty
     final count = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM user_stats'));
     if (count == 0) {
-      await db.insert('user_stats', {'id': 1, 'current_stage': 1, 'tokens': 0});
-    }
-
-    // Check for hint column and add if missing (redundant if we copied fresh asset, but safe)
-    try {
-      await db.rawQuery('SELECT hint FROM vocabulary LIMIT 1');
-    } catch (e) {
-      // Add hint column if it doesn't exist (legacy support)
-      await db.execute('ALTER TABLE vocabulary ADD COLUMN hint TEXT');
+      await db.insert('user_stats', {'id': 1, 'current_grade': 1, 'current_step': 1, 'tokens': 0});
     }
 
     return db;
@@ -62,7 +55,7 @@ class DatabaseHelper {
     if (result.isNotEmpty) {
       return result.first;
     }
-    return {'current_stage': 1, 'tokens': 0};
+    return {'current_grade': 1, 'current_step': 1, 'tokens': 0};
   }
 
   Future<void> updateTokens(int additionalTokens) async {
@@ -70,66 +63,48 @@ class DatabaseHelper {
     await db.rawUpdate('UPDATE user_stats SET tokens = tokens + ? WHERE id = 1', [additionalTokens]);
   }
 
-  Future<void> advanceStage(int stageCompleted) async {
+  Future<void> advanceStep(int grade, int stepCompleted) async {
     final db = await instance.database;
-    // Only advance if the user just completed their current highest stage
-    await db.rawUpdate(
-      'UPDATE user_stats SET current_stage = current_stage + 1 WHERE id = 1 AND current_stage = ?', 
-      [stageCompleted]
+    
+    // Check if there are more words in this grade
+    int nextStep = stepCompleted + 1;
+    int offset = (nextStep - 1) * 10;
+    
+    final nextWords = await db.rawQuery(
+      'SELECT id FROM vocabulary WHERE grade = ? LIMIT 1 OFFSET ?', 
+      [grade, offset]
     );
-  }
 
-  Future<void> resetDatabase() async {
-    final dbPath = await getApplicationDocumentsDirectory();
-    final path = join(dbPath.path, 'vocabulary_v3.db');
-    
-    // Close existing connection
-    if (_database != null) {
-      await _database!.close();
-      _database = null;
-    }
-    
-    // Delete the file
-    if (await File(path).exists()) {
-      await File(path).delete();
+    if (nextWords.isNotEmpty) {
+      // Advance step within the same grade
+      await db.rawUpdate(
+        'UPDATE user_stats SET current_step = ? WHERE id = 1 AND current_grade = ? AND current_step = ?', 
+        [nextStep, grade, stepCompleted]
+      );
+    } else {
+      // Move to next grade, reset step to 1
+      await db.rawUpdate(
+        'UPDATE user_stats SET current_grade = current_grade + 1, current_step = 1 WHERE id = 1 AND current_grade = ? AND current_step = ?', 
+        [grade, stepCompleted]
+      );
     }
   }
 
-  Future<List<Word>> getAllWords() async {
-    final db = await instance.database;
-    final result = await db.query('vocabulary');
-    return result.map((json) => Word.fromMap(json)).toList();
-  }
-
-  Future<List<Word>> getWordsForStage(int stage) async {
+  Future<List<Word>> getWordsForStep(int grade, int step) async {
     final db = await instance.database;
     int limit = 10;
-    int offset = (stage - 1) * 10;
-    final result = await db.rawQuery('SELECT * FROM vocabulary LIMIT ? OFFSET ?', [limit, offset]);
-    return result.map((json) => Word.fromMap(json)).toList();
-  }
-
-  Future<List<Word>> getWordsUpToStage(int stage, int count) async {
-    final db = await instance.database;
-    int maxIndex = stage * 10;
+    int offset = (step - 1) * 10;
     final result = await db.rawQuery(
-      'SELECT * FROM vocabulary WHERE id <= ? ORDER BY RANDOM() LIMIT ?', 
-      [maxIndex, count]
+      'SELECT * FROM vocabulary WHERE grade = ? LIMIT ? OFFSET ?', 
+      [grade, limit, offset]
     );
     return result.map((json) => Word.fromMap(json)).toList();
   }
 
-  Future<List<Word>> getAllUnlockedWords(int stage) async {
+  Future<int> getTotalStepsForGrade(int grade) async {
     final db = await instance.database;
-    int maxIndex = stage * 10;
-    // Fetch all words up to the current stage limit
-    final result = await db.rawQuery('SELECT * FROM vocabulary WHERE id <= ? ORDER BY id ASC', [maxIndex]);
-    return result.map((json) => Word.fromMap(json)).toList();
-  }
-
-  Future<List<Word>> getRandomWords(int count) async {
-    final db = await instance.database;
-    final result = await db.rawQuery('SELECT * FROM vocabulary ORDER BY RANDOM() LIMIT ?', [count]);
-    return result.map((json) => Word.fromMap(json)).toList();
+    final result = await db.rawQuery('SELECT COUNT(*) FROM vocabulary WHERE grade = ?', [grade]);
+    int count = Sqflite.firstIntValue(result) ?? 0;
+    return (count / 10).ceil();
   }
 }

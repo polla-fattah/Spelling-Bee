@@ -4,16 +4,17 @@ import '../models/word.dart';
 import '../services/db_helper.dart';
 import 'quiz_screen.dart';
 
-class StageScreen extends StatefulWidget {
-  final int stage;
+class StepScreen extends StatefulWidget {
+  final int grade;
+  final int step;
 
-  const StageScreen({super.key, required this.stage});
+  const StepScreen({super.key, required this.grade, required this.step});
 
   @override
-  State<StageScreen> createState() => _StageScreenState();
+  State<StepScreen> createState() => _StepScreenState();
 }
 
-class _StageScreenState extends State<StageScreen> {
+class _StepScreenState extends State<StepScreen> {
   late Future<List<Word>> _wordsFuture;
   final PageController _pageController = PageController(viewportFraction: 0.9);
   final FlutterTts _flutterTts = FlutterTts();
@@ -22,7 +23,7 @@ class _StageScreenState extends State<StageScreen> {
   void initState() {
     super.initState();
     _initTts();
-    _wordsFuture = DatabaseHelper.instance.getWordsForStage(widget.stage);
+    _wordsFuture = DatabaseHelper.instance.getWordsForStep(widget.grade, widget.step);
   }
 
   Future<void> _initTts() async {
@@ -59,7 +60,7 @@ class _StageScreenState extends State<StageScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-        title: Text('Stage ${widget.stage}'),
+        title: Text('Grade ${widget.grade} - Step ${widget.step}'),
         backgroundColor: const Color(0xFF6366F1),
         foregroundColor: Colors.white,
       ),
@@ -69,8 +70,9 @@ class _StageScreenState extends State<StageScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => QuizScreen(
-                mode: QuizMode.stage,
-                targetStage: widget.stage,
+                mode: QuizMode.step,
+                targetGrade: widget.grade,
+                targetStep: widget.step,
               ),
             ),
           );
@@ -88,7 +90,7 @@ class _StageScreenState extends State<StageScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No words for this stage yet!'));
+            return const Center(child: Text('No words for this step yet!'));
           }
 
           final words = snapshot.data!;
@@ -281,7 +283,7 @@ class _StageScreenState extends State<StageScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Definition',
+                              'Hint',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -331,8 +333,9 @@ class _StageScreenState extends State<StageScreen> {
               context,
               MaterialPageRoute(
                 builder: (context) => QuizScreen(
-                  mode: QuizMode.stage,
-                  targetStage: widget.stage,
+                  mode: QuizMode.step,
+                  targetGrade: widget.grade,
+                  targetStep: widget.step,
                 ),
               ),
             );
@@ -383,8 +386,9 @@ class _StageScreenState extends State<StageScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => QuizScreen(
-                        mode: QuizMode.stage,
-                        targetStage: widget.stage,
+                        mode: QuizMode.step,
+                        targetGrade: widget.grade,
+                        targetStep: widget.step,
                       ),
                     ),
                   );

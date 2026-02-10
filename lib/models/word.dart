@@ -1,6 +1,7 @@
 class Word {
   final int id;
   final String english;
+  final int grade;
   final String pos;
   final String kurdishSorani;
   final String arabic;
@@ -9,6 +10,7 @@ class Word {
   Word({
     required this.id,
     required this.english,
+    required this.grade,
     required this.pos,
     required this.kurdishSorani,
     required this.arabic,
@@ -57,10 +59,11 @@ class Word {
     return Word(
       id: map['id'],
       english: map['english'],
-      pos: map['pos'],
+      grade: map['grade'] ?? 1,
+      pos: map['pos'] ?? 'Noun',
       kurdishSorani: map['kurdish_sorani'],
       arabic: map['arabic'],
-      hint: map['hint'] ?? '', // Default to empty if missing (backward compatibility)
+      hint: map['hint'] ?? '',
     );
   }
 
@@ -68,6 +71,7 @@ class Word {
     return {
       'id': id,
       'english': english,
+      'grade': grade,
       'pos': pos,
       'kurdish_sorani': kurdishSorani,
       'arabic': arabic,
