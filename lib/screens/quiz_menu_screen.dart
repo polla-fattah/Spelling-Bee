@@ -28,15 +28,15 @@ class _QuizMenuScreenState extends State<QuizMenuScreen> {
       
       if (!mounted) return;
 
-      int currentStage = stats['current_stage'] ?? 1;
-      int maxStage = currentStage;
+      int currentGrade = stats['current_grade'] ?? 1;
+      int maxGrade = currentGrade;
 
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => QuizScreen(
             mode: mode,
-            maxStage: maxStage,
+            maxGrade: maxGrade,
           ),
         ),
       );

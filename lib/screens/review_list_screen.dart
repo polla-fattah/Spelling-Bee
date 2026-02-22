@@ -12,8 +12,8 @@ class ReviewListScreen extends StatefulWidget {
 class _ReviewListScreenState extends State<ReviewListScreen> {
   bool _isLoading = true;
   List<Word> _words = [];
-  int _currentStage = 1;
-  Map<int, List<Word>> _wordsByStage = {};
+  int _currentGrade = 1;
+  Map<int, List<Word>> _wordsByGrade = {};
 
   @override
   void initState() {
@@ -25,24 +25,23 @@ class _ReviewListScreenState extends State<ReviewListScreen> {
     try {
       // 1. Get User Progress
       final stats = await DatabaseHelper.instance.getUserStats();
-      int stage = stats['current_stage'] ?? 1;
+      int grade = stats['current_grade'] ?? 1;
 
-      // 2. Fetch all words up to this stage
-      final words = await DatabaseHelper.instance.getAllUnlockedWords(stage);
+      // 2. Fetch all words up to this grade
+      final words = await DatabaseHelper.instance.getAllUnlockedWords(grade);
 
-      // 3. Group words by stage (10 words per stage)
+      // 3. Group words by grade
       Map<int, List<Word>> grouped = {};
-      for (int i = 0; i < words.length; i++) {
-        int stageNum = (i ~/ 10) + 1;
-        grouped.putIfAbsent(stageNum, () => []);
-        grouped[stageNum]!.add(words[i]);
+      for (final word in words) {
+        grouped.putIfAbsent(word.grade, () => []);
+        grouped[word.grade]!.add(word);
       }
 
       if (mounted) {
         setState(() {
-          _currentStage = stage;
+          _currentGrade = grade;
           _words = words;
-          _wordsByStage = grouped;
+          _wordsByGrade = grouped;
           _isLoading = false;
         });
       }
@@ -87,15 +86,15 @@ class _ReviewListScreenState extends State<ReviewListScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _words.isEmpty
-              ? const Center(child: Text('No words learned yet! Start Stage 1.'))
+              ? const Center(child: Text('No words learned yet! Start Grade 1.'))
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: _wordsByStage.length,
+                  itemCount: _wordsByGrade.length,
                   itemBuilder: (context, index) {
-                    final stageNum = index + 1;
-                    final stageWords = _wordsByStage[stageNum] ?? [];
+                    final gradeNum = _wordsByGrade.keys.toList()[index];
+                    final gradeWords = _wordsByGrade[gradeNum] ?? [];
                     
-                    if (stageWords.isEmpty) return const SizedBox.shrink();
+                    if (gradeWords.isEmpty) return const SizedBox.shrink();
 
                     return Card(
                       elevation: 3,
@@ -104,7 +103,7 @@ class _ReviewListScreenState extends State<ReviewListScreen> {
                       child: Theme(
                         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                         child: ExpansionTile(
-                          initiallyExpanded: stageNum == _currentStage,
+                          initiallyExpanded: gradeNum == _currentGrade,
                           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           childrenPadding: const EdgeInsets.only(bottom: 8),
                           leading: Container(
@@ -121,7 +120,7 @@ class _ReviewListScreenState extends State<ReviewListScreen> {
                             child: const Icon(Icons.bookmark, color: Colors.white, size: 24),
                           ),
                           title: Text(
-                            'Stage $stageNum',
+                            'Grade $gradeNum',
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -129,13 +128,13 @@ class _ReviewListScreenState extends State<ReviewListScreen> {
                             ),
                           ),
                           subtitle: Text(
-                            '${stageWords.length} words',
+                            '${gradeWords.length} words',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey.shade600,
                             ),
                           ),
-                          children: stageWords.asMap().entries.map((entry) {
+                          children: gradeWords.asMap().entries.map((entry) {
                             final wordIndex = entry.key;
                             final word = entry.value;
                             

@@ -107,4 +107,21 @@ class DatabaseHelper {
     int count = Sqflite.firstIntValue(result) ?? 0;
     return (count / 10).ceil();
   }
+
+  Future<List<Word>> getRandomWords(int count) async {
+    final db = await instance.database;
+    final result = await db.rawQuery('SELECT * FROM vocabulary ORDER BY RANDOM() LIMIT ?', [count]);
+    return result.map((json) => Word.fromMap(json)).toList();
+  }
+
+  Future<List<Word>> getAllUnlockedWords(int grade) async {
+    final db = await instance.database;
+    final result = await db.rawQuery('SELECT * FROM vocabulary WHERE grade <= ?', [grade]);
+    return result.map((json) => Word.fromMap(json)).toList();
+  }
+
+  Future<void> resetDatabase() async {
+    final db = await instance.database;
+    await db.update('user_stats', {'current_grade': 1, 'current_step': 1, 'tokens': 0}, where: 'id = ?', whereArgs: [1]);
+  }
 }

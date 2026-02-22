@@ -10,13 +10,6 @@ class CalendarScreen extends StatefulWidget {
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({super.key});
-
-  @override
-  State<CalendarScreen> createState() => _CalendarScreenState();
-}
-
 class _CalendarScreenState extends State<CalendarScreen> {
   int _currentGrade = 1;
   int _currentStep = 1;
@@ -204,5 +197,4 @@ class _CalendarScreenState extends State<CalendarScreen> {
       ),
     );
   }
-}
 }
